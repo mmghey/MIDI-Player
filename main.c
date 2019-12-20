@@ -62,14 +62,14 @@ int getNotes(void)
 	{
 		freq[i] = giveFre(freq_name[i]);
 	}
-	
+	/*
 	//Test the function
 	printf("|Row\t\tName of Note\tFrequency of Note\tTime(mlsec)|\n", i + 1, freq_name[i], freq[i], time[i]);
 	for (i = 0; i < N; i++)
 	{
 		printf("|%d.\t\t|%s\t\t|%f\t\t|%10d|\n", i + 1, freq_name[i], freq[i], time[i]);
 	}
-	
+	*/
 }
 
 
