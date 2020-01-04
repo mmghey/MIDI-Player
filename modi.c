@@ -18,6 +18,12 @@ typedef struct {
 	char chunkData[100000];
 
 } chunk;
+typedef struct {
+	char deltaTime[100];
+	int deltaTimeI;
+	char eventType[100];
+	char eventData[90000];
+};
 
 chunk chunks[100];
 
@@ -25,10 +31,11 @@ int main () {
 	midiFile = fopen("Super Mario 64 - Medley.mid", "r");
 	if( midiFile == NULL ) { //error checking
 		perror("Error while opening the file.\n");
+		return 0;
 	}
 	getChunks();
 }
-void getChunks (void) {
+int getChunks (void) {
 	int c;
 	int y = 0;
 	readBytes(4, identifier);
