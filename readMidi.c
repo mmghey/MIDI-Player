@@ -27,7 +27,7 @@ int main () {
 	printf("identifier, the ascii chars \"%s\"\n", identifier);
 	printf("chunklen, %d bytes of data follow . . .\n", chunklen[3]);
 	printf("Number of tracks = %d%d\n",ntracks[0], ntracks[1]);
-	printf("tickdiv = %d%d\n", tickdiv[0], tickdiv[1]);
+	printf("tickdiv = %d\n", tickdiv[0]*256 + tickdiv[1]);
 
 	return 0;
 
