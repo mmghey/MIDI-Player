@@ -2,12 +2,13 @@
 #include<string.h>
 #include<math.h>
 FILE * midiFile;
-char chunklen[10];
-char identifier[10];
-char format[10];
-char ntracks[10];
+int * place;
+unsigned char chunklen[10];
+unsigned char identifier[10];
+unsigned char format[10];
+unsigned char ntracks[10];
 int ntracksI;
-char tickdiv[10];
+unsigned char tickdiv[10];
 int ntracksI;
 typedef struct {
 	unsigned char identifier[10];
@@ -15,17 +16,17 @@ typedef struct {
 		unsigned char s[10];
 		int in;
 	} chunklen;
-	char chunkData[100000];
+	unsigned char chunkData[100000];
 
 } chunk;
 typedef struct {
-	char deltaTime[100];
+	unsigned char deltaTime[100];
 	int deltaTimeI;
-	char eventType[100];
-	char eventData[90000];
-};
-
-chunk chunks[100];
+	unsigned char eventType[100];
+	unsigned char eventData[90000];
+}event;
+event events[900];
+chunk chunks[900];
 
 int main () {
 	midiFile = fopen("Super Mario 64 - Medley.mid", "r");
@@ -34,6 +35,9 @@ int main () {
 		return 0;
 	}
 	getChunks();
+	getEvents(chunks[0].chunklen.in, 0);
+	printf("first delta time %d\n", events[0].deltaTime[0]);
+	//printf("\n\n\nplace = %d\n", place);
 }
 int getChunks (void) {
 	int c;
@@ -70,10 +74,16 @@ int getChunks (void) {
 int readBytes (int len , char name[]) {
 	int i;
 	for(i = 0 ; i < len ; i++) {
-		fscanf(midiFile, "%c", &name[i]);
+		place = fscanf(midiFile, "%c", &name[i]);
 	}
 }
-int getEvents (int len, char name[]) {
-
+int getEvents (int len ,int chunkNum) {
+	int v = 0;
+	
+	do {
+		sscanf(chunks[chunkNum].chunkData, "%c", events[chunkNum].deltaTime[v]);
+		v++;
+	} while(events[chunkNum].deltaTime[v - 1] > 0x7F);
+	
 }
 
