@@ -33,7 +33,7 @@ int readCount;
 int *readCpuntPT = &readCount;
 
 int main () {
-	midiFile = fopen("Super Mario 64 - Medley.mid", "r");
+	midiFile = fopen("../files/Super Mario 64 - Medley.mid", "r");
 	if( midiFile == NULL ) { //error checking
 		perror("Error while opening the file.\n");
 		return 0;
