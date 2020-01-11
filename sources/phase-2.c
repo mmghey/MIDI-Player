@@ -23,6 +23,8 @@ typedef struct {
 	unsigned char deltaTime[100];
 	int deltaTimeI;
 	unsigned char eventType[100];
+	unsigned char eventLength[100];
+	int eventLengthI;
 	unsigned char eventData[90000];
 }event;
 event events[900];
@@ -76,14 +78,5 @@ int readBytes (int len , char name[]) {
 	for(i = 0 ; i < len ; i++) {
 		place = fscanf(midiFile, "%c", &name[i]);
 	}
-}
-int getEvents (int len ,int chunkNum) {
-	int v = 0;
-	
-	do {
-		sscanf(chunks[chunkNum].chunkData, "%c", events[chunkNum].deltaTime[v]);
-		v++;
-	} while(events[chunkNum].deltaTime[v - 1] > 0x7F);
-	
 }
 
