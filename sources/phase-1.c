@@ -3,7 +3,7 @@
 //sudo apt install pulseaudio
 //sudo apt install alsa-utils
 //before runing run this command : pulseaudio -k && sudo alsa force-reload
-//compile with : gcc test.c beep.o sintable.o -lasound
+//compile with : gcc test.c beep.o sintable.o -lasound -lm
 // intial C source that for doing the final project (playing MIDI files)
 /// by Mohammad Mahdi Gheysari / FUM / 2019
 
