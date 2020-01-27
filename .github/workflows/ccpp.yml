@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: configure
-      run: ./configure
+      run: gcc phase-3t.c beep.o sintable.o -lasound -lm -o phase3t.out
     - name: make
       run: make
     - name: make check
