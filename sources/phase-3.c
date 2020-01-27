@@ -1,6 +1,13 @@
+/// gcc test2.c beep.o sintable.o -lasound -lm -o phase3.out
 #include<stdio.h>
 #include<string.h>
 #include<math.h>
+#include <ctype.h>
+#include "beep.h"
+///Define Variables & Structures
+int readVLQ (unsigned char place[]);
+int readBytes (int len,unsigned char name[]);
+int getChunks (void);
 FILE * midiFile;
 int * place;
 unsigned char chunklen[10];
@@ -9,211 +16,520 @@ unsigned char format[10];
 unsigned char ntracks[10];
 int ntracksI;
 unsigned char tickdiv[10];
-int ntracksI;
-typedef struct {
-	unsigned char identifier[10];
-	struct {
-		unsigned char s[10];
-		int in;
-	} chunklen;
-	unsigned char chunkData[100000];
+int tickdivI;
+double mspt;
+int tempo;
+typedef struct
+{
+    unsigned char identifier[10];
+    struct
+    {
+        unsigned char s[10];
+        int in;
+    } chunklen;
+    unsigned char chunkData[100000];
 
 } chunk;
-typedef struct {
-	unsigned char deltaTime[100];
-	int deltaTimeI;
-	unsigned char eventType[100];
-	unsigned char eventLength[100];
-	int eventLengthI;
-	unsigned char eventData[90000];
+typedef struct
+{
+    unsigned char deltaTime[100];
+    int deltaTimeI;
+    double deltaTimeD;
+    int deltaTimeDD;
+    unsigned char eventType[100];
 } event;
+typedef struct
+{
+    int noteNum;
+    double fre;
+    int time;
+    int channel;
+} note;
+int l = 0;;
 event events[9000];
 chunk chunks[900];
-int readCount;
-int *readCpuntPT = &readCount;
+note notes[900];
+int readCounter = 0;
 
-int main () {
-	midiFile = fopen("../files/Super Mario 64 - Medley.mid", "r");
-	if( midiFile == NULL ) { //error checking
-		perror("Error while opening the file.\n");
-		return 0;
-	}
-	getChunks();
-	//printf("\n\n\nplace = %d\n", place);
+int main ()
+{
+    int keep = 1;
+
+    while (keep == 1)
+    {
+        l = 0;
+
+        char fileName[200];
+        printf("Enter the address/name of your MIDI file:\t");
+        scanf("%s", fileName);
+
+        midiFile = fopen(fileName, "r");
+        if( midiFile == NULL )   //error checking
+        {
+            perror("Error while opening the file.\n");
+            return 0;
+        }
+
+        if(getChunks() == 0)
+        {
+            return 0;
+        };
+        fclose(midiFile);
+
+        int h, z;
+        //for(z = 0 ; z < 15 ; z++)
+        //{
+        //printf("Playing channel %d\n", z);
+        for(h = 0 ; h < l ; h++)
+        {
+
+            if(notes[h].time == 0 || notes[h].noteNum > 128 || notes[h].noteNum < 10)
+            {
+                printf("%4d. channel = %d \t note = %d \t fre = %f \t time = %d \t NOTE IGNORED\n", h + 1,notes[h].channel, notes[h].noteNum, notes[h].fre, notes[h].time);
+            }
+            // else if (notes[h].channel == z)
+            else
+            {
+                printf("%4d. channel = %d \t note = %d \t fre = %f \t time = %d\n", h + 1,notes[h].channel, notes[h].noteNum, notes[h].fre, notes[h].time);
+                beep(notes[h].fre, (int)notes[h].time);
+            }
+        }
+        //}
+
+        printf("**Playing is finished. Do you want to play another file?(Y/N)\n");
+
+        char ans;
+        ans = getchar();
+        ans = getchar();
+
+        if (tolower(ans) == 'y')
+        {
+            keep = 1;
+        }
+        else
+        {
+            keep = 0;
+            printf("Program will be closed.\n");
+        }
+    }
 }
-int getChunks (void) {
-	int c;; //counter for track
-	int y = 0;
+int getChunks (void)
+{
+    int c; //counter for track
+    int y = 0;
+    notes[1].time = 100;
+    // Read ///header
+    readBytes(4, identifier);
+    readBytes(4, chunklen);
+    readBytes(2, format);
+    printf("format: %d ", format[1]);
+    readBytes(2, ntracks);
+    ntracksI = ntracks[0] * 256 + ntracks[1];
+    printf("number of tracks: %d ", ntracksI);
+    readBytes(2, tickdiv);
+    tickdivI = tickdiv[0] * 256 + tickdiv[1];
+    printf("tickdiv: %d ppqn\n", tickdivI);
+    mspt = 500000/((double)tickdivI * 1000);
 
-	// Read header
-	readBytes(4, identifier);
-	puts(identifier);
-	readBytes(4, chunklen);
-	printf("header chunklen = %d\n", chunklen[3]);
-	readBytes(2, format);
-	printf("header format = %d\n", format[1]);
-	readBytes(2, ntracks);
-	ntracksI = ntracks[0] * 256 + ntracks[1];
-	printf("number of tracks = %d\n", ntracksI);
-	readBytes(2, tickdiv);
-	printf("tickdiv = %d\n", tickdiv[0] * 256 + tickdiv[1]);
-	if((format[1] == 0 && ntracksI > 1) || (format[1] == 1 && ntracksI < 2))  {
-		printf("Invalid MIDI file because the format and number of tracks doesn\'t match");
-	}
-	if(strcmp("MThd", identifier) != 0) {
-		printf("Invalid MIDI file because the file does not have header chunk");
-	}
+    if((format[1] == 0 && ntracksI > 1) || (format[1] == 1 && ntracksI < 2))
+    {
+        printf("**WARNING: Invalid MIDI file because the format and number of tracks doesn\'t match\n");
+    }
+    if(strcmp("MThd", identifier) != 0)
+    {
+        printf("**WARNING: Invalid MIDI file because the file does not have header chunk\n");
+    }
 
-	for(c = 0 ; c < ntracksI ; c++) {
-		int flag = 0;
-		readBytes(4,chunks[c].identifier);
-		printf("\n**************************\t%s\tTrack number = %d\t**************************\n",chunks[c].identifier, c + 1);
-		readBytes(4,chunks[c].chunklen.s);
-		chunks[c].chunklen.in = chunks[c].chunklen.s[3] + chunks[c].chunklen.s[2]*pow(16,2) + chunks[c].chunklen.s[1]*pow(16,4) + chunks[c].chunklen.s[0]*pow(16,6);
-		printf("**************************\tchunklen %d = %d\t\t**************************\n", c + 1, chunks[c].chunklen.in);
+    if(format[1] > 1)
+    {
+        printf("**ERROR: MIDI format is not suported\n");
+        return 0;
+    }
 
-		//read first event
+    for(c = 0 ; c < ntracksI ; c++)
+    {
+        int flag = 0;
+        readBytes(4,chunks[c].identifier);
+        printf("**Track: %d, ", c + 1);
+        readBytes(4,chunks[c].chunklen.s);
+        chunks[c].chunklen.in = chunks[c].chunklen.s[3] + chunks[c].chunklen.s[2]*256 + chunks[c].chunklen.s[1]*256*256 + chunks[c].chunklen.s[0]*256*256*256;
+        printf("chunklen: %d\n", chunks[c].chunklen.in);
+        readCounter = 0;
+        //read first event
 
-		int chunkNum;
-		chunkNum= 0; //eventNumber counter
-		int v = 0; // delta time bytes counter
+        int chunkNum;
+        chunkNum= 0; //eventNumber counter
+        int v = 0; // delta time bytes counter
 
 
 
-		while(flag == 0) {
-			printf("\n");
-			chunkNum++;
-			v = 0;
-			do {
-				readBytes(1,events[chunkNum].deltaTime + v);
-				v++;
-			} while(events[chunkNum].deltaTime[v - 1] > 0x7F);
-			//printf("v = %d\n", v);
-			int delta;
-			delta = 0;
+        int lastErr = 0;
 
-			int j;
+        while(flag == 0)
+        {
 
-			for(j = 0 ; j < v ; j++) {
-				delta += events[chunkNum].deltaTime[j];// pow(256,((v - 1) - j));
-			}
+            if(readCounter > chunks[c].chunklen.in)
+            {
+                printf("**ERROR: There is no end of track event\n");
+            }
+            chunkNum++;
 
-			printf("Event %d, delta time is %d\n",chunkNum + 1, delta);
-			readBytes(1,events[chunkNum].eventType);
-			//printf("it starts with %X\n", events[chunkNum].eventType[0]);
-			if(events[chunkNum].eventType[0] == 0xff) { //Meta Events
-				//printf("It's a meta event\n");
-				readBytes(1,events[chunkNum].eventType + 1);
-				//printf("After FF we have %X\n", events[chunkNum].eventType[1]);
-				if (events[chunkNum].eventType[1] == 0x54) {
-					readBytes(6,events[chunkNum].eventType + 2);
-					printf("This is SMPTE Offset event with length of %d (constant)\n", events[chunkNum].eventType[2]);
-					printf("hr =  %d\n", events[chunkNum].eventType[3]);
-					printf("mn =  %d\n", events[chunkNum].eventType[4]);
-					printf("se =  %d\n", events[chunkNum].eventType[5]);
-					printf("fr =  %d\n", events[chunkNum].eventType[6]);
-					printf("ff =  %d\n", events[chunkNum].eventType[7]);
-				} else if (events[chunkNum].eventType[1] == 0x58) {
-					readBytes(1,events[chunkNum].eventType + 2);
-					readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
-					printf("This is Time Signature event with length of %d (constant)\n", events[chunkNum].eventType[2]);
-					printf("nn =  %d\n", events[chunkNum].eventType[3]);
-					printf("dd =  %d\n", events[chunkNum].eventType[4]);
-					printf("cc =  %d\n", events[chunkNum].eventType[5]);
-					printf("bb =  %d\n", events[chunkNum].eventType[6]);
-				} else if (events[chunkNum].eventType[1] == 0x59) {
-					readBytes(1,events[chunkNum].eventType + 2);
-					readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
-					printf("This is Key Signature event with length of %d (constant)\n", events[chunkNum].eventType[2]);
-					printf("sf =  %d\n", events[chunkNum].eventType[3]);
-					printf("mi =  %d\n", events[chunkNum].eventType[4]);
-				} else if (events[chunkNum].eventType[1] == 0x51) {
-					readBytes(1,events[chunkNum].eventType + 2);
-					readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
-					printf("This is Tempo event with length of %d (constant)\n", events[chunkNum].eventType[2]);
-					printf("tt =  %d\n", events[chunkNum].eventType[3]);
-					printf("tt =  %d\n", events[chunkNum].eventType[4]);
-					printf("tt =  %d\n", events[chunkNum].eventType[5]);
-				} else if (events[chunkNum].eventType[1] == 0x2F) {
-					readBytes(1,events[chunkNum].eventType + 2);
-					readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
-					printf("This is End of Track event with length of %d (constant)\n", events[chunkNum].eventType[2]);
-					flag = 1;
-				} else if (events[chunkNum].eventType[1] == 0x09) {
-					readBytes(1,events[chunkNum].eventType + 2);
-					readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
-					printf("This is Device Name event with length of %d \n", events[chunkNum].eventType[2]);
-					printf("text =  %s\n", events[chunkNum].eventType + 3);
-				} else if (events[chunkNum].eventType[1] == 0x03) {
-					readBytes(1,events[chunkNum].eventType + 2);
-					readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
-					printf("This is Sequence / Track Name event with length of %d \n", events[chunkNum].eventType[2]);
-					printf("text =  %s\n", events[chunkNum].eventType + 3);
-				} else {
-					printf("\n\t\t\t\t\t*************************************\t\t\t\t\t\n");
-					printf("\n\t\t\t\t\t*             Unknown Event         *\t\t\t\t\t\n");
-					printf("\n\t\t\t\t\t*************************************\t\t\t\t\t\n");
-					return 0;
-				}
-			} else if(events[chunkNum].eventType[0] == 0xf7 || events[chunkNum].eventType[0] == 0xf0) {
-				//printf("It's a SysEx event\n");
-				readBytes(1,events[chunkNum].eventType + 1);
-				//printf("After F7 or F0 we have %X\n", events[chunkNum].eventType[1]);
-				{
-					printf("\n\t\t\t\t\t*************************************\t\t\t\t\t\n");
-					printf("\n\t\t\t\t\t*             Unknown Event         *\t\t\t\t\t\n");
-					printf("\n\t\t\t\t\t*************************************\t\t\t\t\t\n");
-					return 0;
-				}
-			} else if(events[chunkNum].eventType[0] >= 0x80 && events[chunkNum].eventType[0] <= 0xEF) {
-				printf("It's a MIDI event\n");
-				if (events[chunkNum].eventType[0] >= 0xC0 && events[chunkNum].eventType[0] <= 0xCF) {
-					int chanel = events[chunkNum].eventType[0] - 0xC * 16;
-					printf("This is Program Change event, in channel %d \n", chanel);
-					readBytes(1,events[chunkNum].eventType + 1);
-					printf("program = %d\n", events[chunkNum].eventType[1]);
-				} else if (events[chunkNum].eventType[0] >= 0xB0 && events[chunkNum].eventType[0] <= 0xBF) {
-					int chanel = events[chunkNum].eventType[0] - 0xB * 16;
-					printf("This is Controller event, in channel %d \n", chanel);
-					readBytes(2,events[chunkNum].eventType + 1);
-					printf("controller = %d\n", events[chunkNum].eventType[1]);
-					printf("value = %d\n", events[chunkNum].eventType[2]);
-				} else if (events[chunkNum].eventType[0] >= 0x90 && events[chunkNum].eventType[0] <= 0x9F) {
-					int chanel = events[chunkNum].eventType[0] - 0x9 * 16;
-					printf("This is Note On event, in channel %d \n", chanel);
-					readBytes(2,events[chunkNum].eventType + 1);
-					printf("note = %d\n", events[chunkNum].eventType[1]);
-					printf("velocity = %d\n", events[chunkNum].eventType[2]);
-				} else if (events[chunkNum].eventType[0] >= 0x80 && events[chunkNum].eventType[0] <= 0x8F) {
-					int chanel = events[chunkNum].eventType[0] - 0x8 * 16;
-					printf("This is Note Off event, in channel %d \n", chanel);
-					readBytes(2,events[chunkNum].eventType + 1);
-					printf("note = %d\n", events[chunkNum].eventType[1]);
-					printf("velocity = %d\n", events[chunkNum].eventType[2]);
-				} else {
-					printf("\n\t\t\t\t\t*************************************\t\t\t\t\t\n");
-					printf("\n\t\t\t\t\t*             Unknown Event         *\t\t\t\t\t\n");
-					printf("\n\t\t\t\t\t*************************************\t\t\t\t\t\n");
-					return 0;
-				}
-			} else {
-				printf("\n\t\t\t\t\t*************************************\t\t\t\t\t\n");
-				printf("\n\t\t\t\t\t*             Unknown Event         *\t\t\t\t\t\n");
-				printf("\n\t\t\t\t\t*************************************\t\t\t\t\t\n");
-				return 0;
-			}
+            if (lastErr == 0)
+            {
+                events[chunkNum].deltaTimeI = readVLQ(events[chunkNum].deltaTime);
+                events[chunkNum].deltaTimeD = (double)events[chunkNum].deltaTimeI * mspt;
+            }
+            //printf("Event %d in track %d, delta time is %d or %f ms\n",chunkNum, c + 1, events[chunkNum].deltaTimeI, events[chunkNum].deltaTimeD);
+            readBytes(1,events[chunkNum].eventType);
+            //printf("it starts with %X\n", events[chunkNum].eventType[0]);
+            if(events[chunkNum].eventType[0] == 0xff)   //Meta Events
+            {
+                lastErr = 0;
+                printf("\n");
+                //printf("\nIt's a meta event\n");
+                readBytes(1,events[chunkNum].eventType + 1);
+                //printf("After FF we have %X\n", events[chunkNum].eventType[1]);
+                if (events[chunkNum].eventType[1] == 0x54)
+                {
+                    lastErr = 0;
+                    readBytes(6,events[chunkNum].eventType + 2);
+                    printf("SMPTE Offset event with length of %d (constant), ", events[chunkNum].eventType[2]);
+                    printf("hr =  %d, ", events[chunkNum].eventType[3]);
+                    printf("mn =  %d, ", events[chunkNum].eventType[4]);
+                    printf("se =  %d, ", events[chunkNum].eventType[5]);
+                    printf("fr =  %d, ", events[chunkNum].eventType[6]);
+                    printf("ff =  %d\n", events[chunkNum].eventType[7]);
+                }
+                else if (events[chunkNum].eventType[1] == 0x58)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Time Signature event with length of %d (constant), ", events[chunkNum].eventType[2]);
+                    printf("nn =  %d, ", events[chunkNum].eventType[3]);
+                    printf("dd =  %d, ", events[chunkNum].eventType[4]);
+                    printf("cc =  %d, ", events[chunkNum].eventType[5]);
+                    printf("bb =  %d\n", events[chunkNum].eventType[6]);
+                }
+                else if (events[chunkNum].eventType[1] == 0x59)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Key Signature event with length of %d (constant)\n", events[chunkNum].eventType[2]);
+                    printf("sf =  %d\n", events[chunkNum].eventType[3]);
+                    printf("mi =  %d\n", events[chunkNum].eventType[4]);
+                }
+                else if (events[chunkNum].eventType[1] == 0x51)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Tempo event with length of %d (constant)\n", events[chunkNum].eventType[2]);
+                    //printf("tt =  %d\n", events[chunkNum].eventType[3]);
+                    //printf("tt =  %d\n", events[chunkNum].eventType[4]);
+                    //printf("tt =  %d\n", events[chunkNum].eventType[5]);
+                    tempo = events[chunkNum].eventType[3] * 256 * 256 + events[chunkNum].eventType[4] * 256 + events[chunkNum].eventType[5];
+                    printf("new tempo =  %d\n", tempo);
+                    mspt = (double)tempo/((double)tickdivI * 1000);
+                    printf("new mspt =  %f\n", mspt);
 
-		}
+                }
+                else if (events[chunkNum].eventType[1] == 0x2F)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("End of Track event with length of %d (constant)\n", events[chunkNum].eventType[2]);
+                    printf("Read Counter was = %d and chunkLen = %d\n", readCounter, (chunks[c].chunklen.in));
+                    if(readCounter == chunks[c].chunklen.in)
+                    {
+                    flag = 1;
+                    printf("Track Ends\n");
+                    }
+                    else
+                    {
+                        printf("**ERROR: End of track ocurred sooner than it should\n");
+                        return 0;
+                    }
 
-	}
+                }
+                else if (events[chunkNum].eventType[1] == 0x09)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Device Name event with length of %d \n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x03)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Sequence / Track Name event with length of %d \n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x01)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Text event with length of %d (constant)\n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x02)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Copyright event with length of %d \n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x04)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Instrument Name event with length of %d \n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x05)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Lyric event with length of %d \n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x06)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Marker event with length of %d \n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x07)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Cue Point event with length of %d\n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x08)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("Program Name event with length of %d\n", events[chunkNum].eventType[2]);
+                    printf("text =  %s\n", events[chunkNum].eventType + 3);
+                }
+                else if (events[chunkNum].eventType[1] == 0x20)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("MIDI Channel Prefix event with length of %d (constant)\n", events[chunkNum].eventType[2]);
+                    printf("cc =  %d\n", events[chunkNum].eventType[3]);
+                }
+                else if (events[chunkNum].eventType[1] == 0x21)
+                {
+                    readBytes(1,events[chunkNum].eventType + 2);
+                    readBytes(events[chunkNum].eventType[2],events[chunkNum].eventType + 3);
+                    printf("MIDI Port event with length of %d (constant)\n", events[chunkNum].eventType[2]);
+                    printf("pp =  %d\n", events[chunkNum].eventType[3]);
+                }
+                else
+                {
+                    printf("**ERROR: Unknown meta event.\n");
+                    return 0;
+                }
+            }
+            else if(events[chunkNum].eventType[0] == 0xf7 || events[chunkNum].eventType[0] == 0xf0) //SysEx Events
+            {
+                printf("\n");
+                lastErr = 0;
+                if (events[chunkNum].eventType[0] == 0xf0)
+                {
+                    unsigned char sys[100];
+                    int sysNum;
+                    v = 0;
+                    do
+                    {
+                        sys[v - 1] - 128;
+                        readBytes(1,sys + v);
+                        v++;
+                    }
+                    while(sys[v - 1] > 0x7F);
+                    //printf("v = %d\n", v);
+
+                    int j;
+                    sysNum = 0;
+                    for(j = 0 ; j < v ; j++)
+                    {
+                        sysNum += sys[j] * (int)pow((double)256,(double)((v - 1) - j));
+                    }
+                    readBytes(sysNum,events[chunkNum].eventType + 2);
+                    printf("Single (complete) SysEx messages event with length of %d \n", sysNum);
+                    printf("text =  %s\n", events[chunkNum].eventType + 2);
+                }
+                else if (events[chunkNum].eventType[0] == 0xf7)
+                {
+                    unsigned char sys[100];
+                    int sysNum;
+                    v = 0;
+                    do
+                    {
+                        sys[v - 1] - 128;
+                        readBytes(1,sys + v);
+                        v++;
+                    }
+                    while(sys[v - 1] > 0x7F);
+                    //printf("v = %d\n", v);
+
+                    int j;
+                    sysNum = 0;
+                    for(j = 0 ; j < v ; j++)
+                    {
+                        sysNum += sys[j] * (int)pow((double)256,(double)((v - 1) - j));
+                    }
+                    readBytes(sysNum,events[chunkNum].eventType + 2);
+                    printf("Escape sequences messages event with length of %d \n", sysNum);
+                    printf("bytes =  %s\n", events[chunkNum].eventType + 2);
+                }
+
+                else
+                {
+                    printf("**ERROR: Unknown system exclusive event.\n");
+                    return 0;
+                }
+            }
+            else if(events[chunkNum].eventType[0] >= 0x80 && events[chunkNum].eventType[0] <= 0xEF)
+            {
+                lastErr = 0;
+                //printf("It's a MIDI event\n");
+                if (events[chunkNum].eventType[0] >= 0xC0 && events[chunkNum].eventType[0] <= 0xCF)
+                {
+                    printf("\n");
+                    int chanel = events[chunkNum].eventType[0] - 0xC * 16;
+                    printf("Program Change event, in channel %d \n", chanel);
+                    readBytes(1,events[chunkNum].eventType + 1);
+                    printf("program = %d\n", events[chunkNum].eventType[1]);
+                }
+                else if (events[chunkNum].eventType[0] >= 0xB0 && events[chunkNum].eventType[0] <= 0xBF)
+                {
+                    printf("\n");
+                    int chanel = events[chunkNum].eventType[0] - 0xB * 16;
+                    printf("Controller event, in channel %d \n", chanel);
+                    readBytes(2,events[chunkNum].eventType + 1);
+                    printf("controller = %d\n", events[chunkNum].eventType[1]);
+                    printf("value = %d\n", events[chunkNum].eventType[2]);
+                }
+                else if (events[chunkNum].eventType[0] >= 0xA0 && events[chunkNum].eventType[0] <= 0xAF)
+                {
+                    printf("\n");
+                    int chanel = events[chunkNum].eventType[0] - 0xA * 16;
+                    printf("Polyphonic Pressure event, in channel %d \n", chanel);
+                    readBytes(2,events[chunkNum].eventType + 1);
+                    printf("note = %d\n", events[chunkNum].eventType[1]);
+                    printf("pressure = %d\n", events[chunkNum].eventType[2]);
+                }
+                else if (events[chunkNum].eventType[0] >= 0xE0 && events[chunkNum].eventType[0] <= 0xEF)
+                {
+                    printf("\n");
+                    int chanel = events[chunkNum].eventType[0] - 0xE * 16;
+                    printf("Pitch Bend event, in channel %d \n", chanel);
+                    readBytes(2,events[chunkNum].eventType + 1);
+                    printf("lsb = %d\n", events[chunkNum].eventType[1]);
+                    printf("msb = %d\n", events[chunkNum].eventType[2]);
+                }
+                else if (events[chunkNum].eventType[0] >= 0xD0 && events[chunkNum].eventType[0] <= 0xDF)
+                {
+                    printf("\n");
+                    int chanel = events[chunkNum].eventType[0] - 0xD * 16;
+                    printf("Channel Pressure event, in channel %d \n", chanel);
+                    readBytes(1,events[chunkNum].eventType + 1);
+                    printf("pressure = %d\n", events[chunkNum].eventType[1]);
+                }
+                else if (events[chunkNum].eventType[0] >= 0x90 && events[chunkNum].eventType[0] <= 0x9F)
+                {
+                    int chanel = events[chunkNum].eventType[0] - 0x9 * 16;
+                    //printf("This is Note On event, in channel %d \n", chanel);
+                    readBytes(2,events[chunkNum].eventType + 1);
+                    //printf("note = %d\n", events[chunkNum].eventType[1]);
+                    //printf("velocity = %d\n", events[chunkNum].eventType[2]);
+                }
+                else if (events[chunkNum].eventType[0] >= 0x80 && events[chunkNum].eventType[0] <= 0x8F)
+                {
+                    int chanel = events[chunkNum].eventType[0] - 0x8 * 16;
+                    //printf("This is Note Off event, in channel %d \n", chanel);
+                    readBytes(2,events[chunkNum].eventType + 1);
+                    //printf("note = %d\n", events[chunkNum].eventType[1]);
+                    //printf("velocity = %d\n", events[chunkNum].eventType[2]);
+                    notes[l].noteNum = events[chunkNum].eventType[1];
+                    notes[l].fre = pow((double)2,(double)(((double)notes[l].noteNum - 69)/12)) * 440;
+                    notes[l].channel = chanel;
+                    while(events[chunkNum].deltaTimeD > 1000)
+                    {
+                        events[chunkNum].deltaTimeD/=10;
+                    }
+                    notes[l].time = (int)(events[chunkNum].deltaTimeD / 100) * 100 + 400;
+                    //printf("%f\n", notes[l].fre);
+                    /*if (events[chunkNum].deltaTimeD == 0) {
+                    	notes[l].time = 0;
+                    	if(l == 1) {
+                            notes[1].time = 400;
+                    	}
+                    	//printf("Note Ignored\n");
+                    }
+                    else {*/
+                    //}*/
+
+                    l++;
+
+                }
+                else
+                {
+
+                    printf("**ERROR: Unknown midi event.\n");
+                    return 0;
+                }
+            }
+            else
+            {
+                lastErr = 1;
+                printf("**ERROR: Unknown event because it started with %X(HEX).\n", events[chunkNum].eventType[0]);
+                return 0;
+            }
+
+        }
+
+    }
 }
 
-
-int readBytes (int len , char name[]) {
-	int i;
-	for(i = 0 ; i < len ; i++) {
-		fscanf(midiFile, "%c", &name[i]);
-		readCount++;
-	}
+int readBytes (int len,unsigned char name[])
+{
+    int i;
+    for(i = 0 ; i < len ; i++)
+    {
+        fscanf(midiFile, "%c", &name[i]);
+        readCounter++;
+    }
 }
+int readVLQ (unsigned char place[])
+{
+    int v = 0;
+    int j;
+    int number = 0;
+
+    readBytes(1,place);
+
+
+    while(place[v] > 127)
+    {
+        place[v] = place[v] - 128;
+        v++;
+
+        readBytes(1,place + v);
+
+    }
+
+
+
+    for(j = 0 ; j < v ; j++)
+    {
+        number += place[j] * pow(128,v-j);
+    }
+
+    return number;
+}
+
 
